@@ -22,6 +22,7 @@ using System.CodeDom.Compiler;
 using Microsoft.CSharp;
 using NUnit.Framework;
 using Avro.Specific;
+using Newtonsoft.Json.Linq;
 
 namespace Avro.Test
 {
@@ -157,6 +158,33 @@ namespace Avro.Test
             {
                 Assert.AreEqual(expectedNamespace, type.Namespace);
             }
+        }
+
+        [TestCase(@"{
+            ""type"":""record"",
+            ""name"":""SchemaObjectWithDocs"",
+            ""namespace"":""schematest"",
+            ""doc"":""SchemaObjectWithDocs doc"",
+            ""fields"":
+                [
+                    {""name"":""myString"",""type"":""string"",""doc"":""myString doc""},
+                    {""name"":""myEnum"",""type"":{""type"":""enum"",""name"":""EnumType"",""namespace"":""schematest"",""doc"":""EnumType doc"",""symbols"":[""enumValue""]},""doc"":""myEnum doc""},
+                    {""name"":""myRecord"",""type"":{""type"":""record"",""name"":""RecordObject"",""namespace"":""schematest"",""doc"":""RecordObject doc"",""fields"":[{""name"":""myInt"",""type"":""int"",""doc"":""myInt doc""}]},""doc"":""myRecord doc""}]}",
+            "schematest.SchemaObjectWithDocs")]
+        public void TestCodeGenWithDocs(string str, string csharpNamespace)
+        {
+            Schema schema = Schema.Parse(str);
+
+            CompilerResults compres = GenerateSchema(schema);
+
+            // instantiate object
+            ISpecificRecord rec = compres.CompiledAssembly.CreateInstance(csharpNamespace) as ISpecificRecord;
+            Assert.IsNotNull(rec);
+
+            JObject originalSchema = JObject.Parse(schema.ToString());
+            JObject generatedSchema = JObject.Parse(rec.Schema.ToString());
+
+            Assert.AreEqual(generatedSchema, originalSchema);
         }
 
         private static CompilerResults GenerateSchema(Schema schema)

@@ -209,6 +209,7 @@ namespace Avro
         protected internal override void WriteJsonFields(Newtonsoft.Json.JsonTextWriter writer, SchemaNames names, string encspace)
         {
             this.SchemaName.WriteJson(writer, names, encspace);
+            JsonHelper.writeIfNotNullOrEmpty(writer, "doc", this.Documentation);
 
             if (null != aliases)
             {
