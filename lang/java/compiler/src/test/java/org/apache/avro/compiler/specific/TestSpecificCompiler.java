@@ -17,10 +17,11 @@
  */
 package org.apache.avro.compiler.specific;
 
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertThat;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -152,7 +153,6 @@ public class TestSpecificCompiler {
   public void testPublicFieldVisibility() throws IOException {
     SpecificCompiler compiler = createCompiler();
     compiler.setFieldVisibility(SpecificCompiler.FieldVisibility.PUBLIC);
-    assertFalse(compiler.deprecatedFields());
     assertTrue(compiler.publicFields());
     assertFalse(compiler.privateFields());
     compiler.compileToDestination(this.src, this.OUTPUT_DIR.getRoot());
@@ -229,29 +229,9 @@ public class TestSpecificCompiler {
   }
 
   @Test
-  public void testPublicDeprecatedFieldVisibility() throws IOException {
-    SpecificCompiler compiler = createCompiler();
-    compiler.setFieldVisibility(SpecificCompiler.FieldVisibility.PUBLIC_DEPRECATED);
-    assertTrue(compiler.deprecatedFields());
-    assertTrue(compiler.publicFields());
-    assertFalse(compiler.privateFields());
-    compiler.compileToDestination(this.src, this.OUTPUT_DIR.getRoot());
-    assertTrue(this.outputFile.exists());
-    try (BufferedReader reader = new BufferedReader(new FileReader(this.outputFile))) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        // No line, once trimmed, should start with a public field declaration
-        line = line.trim();
-        assertFalse("Line started with a public field declaration: " + line, line.startsWith("public int value"));
-      }
-    }
-  }
-
-  @Test
   public void testPrivateFieldVisibility() throws IOException {
     SpecificCompiler compiler = createCompiler();
     compiler.setFieldVisibility(SpecificCompiler.FieldVisibility.PRIVATE);
-    assertFalse(compiler.deprecatedFields());
     assertFalse(compiler.publicFields());
     assertTrue(compiler.privateFields());
     compiler.compileToDestination(this.src, this.OUTPUT_DIR.getRoot());
@@ -546,6 +526,25 @@ public class TestSpecificCompiler {
     final Collection<String> usedConversionClasses = compiler.getUsedConversionClasses(schemaWithNullableDecimal1);
     Assert.assertEquals(1, usedConversionClasses.size());
     Assert.assertEquals("org.apache.avro.Conversions.DecimalConversion", usedConversionClasses.iterator().next());
+  }
+
+  @Test
+  public void testGetUsedConversionClassesForNullableTimestamps() throws Exception {
+    SpecificCompiler compiler = createCompiler();
+
+    // timestamp-millis and timestamp-micros used to cause collisions when both were
+    // present or added as converters (AVRO-2481).
+    final Schema tsMillis = LogicalTypes.timestampMillis().addToSchema(Schema.create(Schema.Type.LONG));
+    final Schema tsMicros = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+
+    final Collection<String> conversions = compiler.getUsedConversionClasses(SchemaBuilder.record("WithTimestamps")
+        .fields().name("tsMillis").type(tsMillis).noDefault().name("tsMillisOpt").type().unionOf().nullType().and()
+        .type(tsMillis).endUnion().noDefault().name("tsMicros").type(tsMicros).noDefault().name("tsMicrosOpt").type()
+        .unionOf().nullType().and().type(tsMicros).endUnion().noDefault().endRecord());
+
+    Assert.assertEquals(2, conversions.size());
+    assertThat(conversions, hasItem("org.apache.avro.data.TimeConversions.TimestampMillisConversion"));
+    assertThat(conversions, hasItem("org.apache.avro.data.TimeConversions.TimestampMicrosConversion"));
   }
 
   @Test
